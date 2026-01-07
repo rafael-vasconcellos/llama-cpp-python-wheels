@@ -23,23 +23,38 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: |
+      - name: Install build tools
+        run: |
           python -m pip install -U pip
           python -m pip install -U cibuildwheel
 
-      - name: Build wheel (CPU only)
+      - name: Build wheel (CPU optimized for HF Spaces)
         env:
           # Define que o diretório do pacote é a raiz onde clonamos a lib
-          CIBW_PACKAGE_DIR: "."
+          # CIBW_PACKAGE_DIR: "."
+          # CORREÇÃO: Usamos apenas 'yum' pois o container manylinux2014/2_28 é baseado em CentOS/AlmaLinux.
+          CIBW_BEFORE_ALL_LINUX: "yum install -y openblas-devel"
+
+          # Configurações do Build
           CIBW_BUILD: "cp310-manylinux_x86_64"
           CIBW_SKIP: "*-musllinux_*"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: "" 
+          
+          # Flags de Performance Segura (AVX2 + FMA + OpenBLAS)
+          # Desativamos NATIVE para garantir compatibilidade entre GitHub e HF Spaces
           CIBW_ENVIRONMENT_LINUX: >-
-            CMAKE_ARGS="-DGGML_BLAS=OFF -DGGML_NATIVE=OFF"
+            CMAKE_ARGS="-DGGML_BLAS=ON 
+            -DGGML_BLAS_VENDOR=OpenBLAS 
+            -DGGML_AVX2=ON 
+            -DGGML_FMA=ON 
+            -DGGML_F16C=ON 
+            -DGGML_NATIVE=OFF"
         run: |
           python -m cibuildwheel --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: wheelhouse
+          name: llama-cpp-cpu-wheel
           path: wheelhouse/*.whl
+
